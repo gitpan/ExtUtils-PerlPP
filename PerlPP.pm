@@ -31,7 +31,7 @@ use vars qw($VERSION @ISA @EXPORT);
 
 @ISA = qw(Exporter);
 @EXPORT = qw(ppp);
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 
 sub new {
@@ -118,6 +118,7 @@ sub parse {
     my $out = $self->{'out_fh'};
     my $config = $self->{'config'};
     my $defaultConfig = !$self->{'no_config_default'};
+    my $makeDirs = !$self->{'no_makedirs'};
     my @if_stack;
     my $if_state = 1;
 
@@ -130,10 +131,20 @@ sub parse {
 	$in = $fh;
     }
     if (!ref($out)) {
+	# Create directories, if desired
+	if ($makeDirs) {
+	    require File::Basename;
+	    my $base = File::Basename::dirname($out);
+	    if (! -d $base) {
+		require File::Path;
+	        File::Path::mkpath([$base], 0, 0755);
+	    }
+	}
+
 	require IO::File;
 	my $fh = IO::File->new($out, "w");
 	if (!$fh) {
-	    die "Error while opening $in: $!";
+	    die "Error while opening $out: $!";
 	}
 	$out = $fh;
     }
@@ -143,7 +154,7 @@ sub parse {
 	if (!$fh) {
 	    die "Error while opening $config: $!";
 	}
-	$fh->input_record_separator(undef);
+	local($/) = undef;
 	my $code = $fh->getline();
 	if (!defined($code)) {
 	    die "Error while reading $config: $!";
@@ -254,10 +265,10 @@ ExtUtils::PerlPP - A Perl Preprocessor
 =head1 DESCRIPTION
 
 Perl's installation suite, ExtUtils::MakeMaker, contains a mechanism for
-installing preparsed files, called I<PL> files: If the MakeMaker utility
-detects files with the extension C<.PL> then these files are executed in
-by I<make>, usually creating a file of the same name, but without the
-C<.PL> extension.
+installing preparsed files, so-called I<PL> files: If the MakeMaker utility
+detects files with the extension C<.PL> then these files are executed
+by I<make>, usually creating a file of the same name, except the C<.PL>
+extension.
 
 Writing these PL files is usually always the same, for example a typical
 C<.PL> file might look like this:
@@ -290,7 +301,7 @@ Fix defaults, for example installation paths.
 =item -
 
 Including or excluding code sections. It is a matter of taste whether one
-likes to see something like
+likes to see
 
     if ($] < 5.003) {
 	# Thirty lines of code following here
@@ -305,8 +316,8 @@ when already using Perl 5.005. I don't.
 =back
 
 
-This module is dedicated to simplify such tasks greatly. In short, you
-can use it like this:
+This module is dedicated to simplify such tasks. In short, you can use
+it like this:
 
 
 =head2 Create a new preprocessor
@@ -326,13 +337,13 @@ The input file, any kind of IO object, for example an instance of
 IO::File or IO::Scalar. More general: It can be any object that offers
 a I<getline> method.
 
-A string value (to be distinguished from an IO::Scalar instance!) will
+A scalar value (to be distinguished from an IO::Scalar instance!) will
 be interpreted as a file name that the method opens for you.
 
 =item out_fh
 
 The output file; another IO object or any other object that offers a
-I<print> method. A string value is accepted as output file name.
+I<print> method. A scalar value is accepted as output file name.
 
 =item config
 
@@ -344,11 +355,13 @@ is what C<-Dvar=val> is for the C preprocessor. Similarly you can compare
 
     delete $ppp->{'config'};
 
-with C<-Uvar>. See L<"Macro replacements"> below.
+with C<-Uvar>. See L<"Macro replacements"> below. Unlike C, variables may
+be arbitrarily complex, in particular you can use hash or array refs as
+values.
 
-Surprisingly you may pass a file name again: In that case the file is
-evaluated and the result is used as a configuration hash. In other
-words
+Surprisingly you may pass a scalar value again: In that case the file of
+the same name evaluated and the result is used as a configuration hash.
+In other words
 
     $ppp->{'config'} = "myapp.cfg";
 
@@ -356,7 +369,7 @@ is similar to
 
     $ppp->{'config'} = do "myapp.cfg";
 
-Such config files can easily created using the I<Data::Dumper> module.
+Such config files can easily be created using the I<Data::Dumper> module.
 L<Data::Dumper(3)>.
 
 =item no_config_default
@@ -365,6 +378,13 @@ If a variable name is used, but no such attribute is present in the
 I<config> hash, then by default the variable is looked up in the
 C<$Config> from the I<Config> module. This behaviour is suppressed,
 if you set I<no_config_default> to a TRUE value. L<Config(3)>.
+
+=item no_makedirs
+
+By default directories are created silently if required. For example,
+if you pass a value of C</usr/local/foo/bar> as output file and only
+C</usr/local> exists, then the subdirectory C<foo> will be created.
+The option I<no_makedirs> suppresses this behaviour.
 
 =back
 
