@@ -16,7 +16,7 @@ SYNOPSIS
         $self->parse();
 
         # And now a short cut for the same:
-        ppp('file.PL', 'file', $config);    
+        ppp('file.PL', 'file', $config);
 
 DESCRIPTION
     Perl's installation suite, ExtUtils::MakeMaker, contains a mechanism for
@@ -151,6 +151,13 @@ DESCRIPTION
                                            'out_fh' => 'outfile',
                                            'config' => 'configfile');
         $parser->parse();
+
+    In order to be easily used within Makefiles, the ppp frontend can read
+    from @ARGV. That is, you can use the module like this:
+
+        perl -MExtUtils::PerlPP -e ppp <infile> <outfile> <configfile>
+
+    from the commandline.
 
   Macro replacements
 
